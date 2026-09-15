@@ -1,7 +1,8 @@
 import streamlit as st
 from google import genai
 
-# Configuração da página (Deve ser o primeiro comando Streamlit do script)
+# Configuração global da página
+# Precisa ser a primeira chamada ao Streamlit no script
 st.set_page_config(
     page_title="Party Games Hub",
     page_icon="🎲",
@@ -9,9 +10,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# Importando os 4 módulos dos jogos.
-# Nota: Se você salvou os arquivos dentro da pasta 'games',
-# altere os imports para: from games import deducao_social, etc.
+# Import dos módulos de cada categoria de jogo
 from games import deducao_social
 from games import adivinhacao_palavras
 from games import desenho_criatividade
@@ -19,22 +18,24 @@ from games import interacao_descontracao
 
 
 def main():
-    # --- MENU LATERAL (SIDEBAR) ---
+    # --- Sidebar: Configurações e Navegação ---
 
+    # Captura a API key para habilitar a geração via IA
     api_key = st.sidebar.text_input("Insira sua API Key do Gemini:", type="password")
 
     if api_key:
-        # SALVANDO NA MEMÓRIA PARA OS JOGOS ACESSAREM
+        # Armazena a key no state para que os submódulos (jogos) consigam usá-la
         st.session_state["api_key"] = api_key
         st.sidebar.success("Chave configurada! A IA está pronta.")
     else:
         st.sidebar.warning(
             "Insira uma API Key para gerar palavras com IA. Caso contrário, usaremos as listas padrão."
         )
-        
+
     st.sidebar.title("🎲 Party Games")
     st.sidebar.markdown("Escolha a categoria:")
 
+    # Menu principal de navegação
     pagina = st.sidebar.radio(
         "Navegação",
         [
@@ -52,7 +53,8 @@ def main():
         "💡 **Dica:** Alguns jogos precisam que os participantes não olhem a tela ao mesmo tempo. Siga as instruções de cada jogo!"
     )
 
-    # --- ROTEAMENTO DE PÁGINAS ---
+    # --- Roteamento: Renderiza o módulo correspondente à seleção ---
+
     if pagina == "🏠 Início":
         st.title("🎲 Bem-vindo ao Party Games Hub!")
         st.markdown("""
