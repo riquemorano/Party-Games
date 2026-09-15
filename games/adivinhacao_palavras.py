@@ -2,6 +2,7 @@ import streamlit as st
 import random
 import os
 import time
+from utils.gemini import gerar_conteudo_ia
 
 # --- CARREGAMENTO DE DADOS ---
 @st.cache_data
@@ -80,27 +81,14 @@ def inicializar_estado():
         
     if "mimica_palavra" not in st.session_state:
         st.session_state.mimica_palavra = None
-
-def iniciar_codigo_secreto():
-    palavras = random.sample(st.session_state.banco_palavras, min(25, len(st.session_state.banco_palavras)))
-    cores = ["🔴 Vermelho"] * 9 + ["🔵 Azul"] * 8 + ["⚪ Neutro"] * 7 + ["⚫ ASSASSINO"] * 1
-    random.shuffle(cores)
-    st.session_state.cs_palavras = palavras
-    st.session_state.cs_cores = cores
-    st.session_state.cs_reveladas = [False] * 25
-    st.session_state.jogo_adivinhacao_ativo = "codigo_secreto"
-
-def iniciar_just_one():
-    st.session_state.jo_palavra = random.choice(st.session_state.banco_palavras)
-    st.session_state.jo_dicas = {}
-    st.session_state.jo_fase = "escrever_dicas"
-    st.session_state.jogo_adivinhacao_ativo = "just_one"
-
-def iniciar_tabu():
-    palavra = random.choice(list(DICIONARIO_TABU.keys()))
-    st.session_state.tabu_palavra = palavra
-    st.session_state.tabu_proibidas = DICIONARIO_TABU[palavra]
-    st.session_state.jogo_adivinhacao_ativo = "tabu"
+        
+    # Inicialização para jogos que precisam de tabuleiro montado
+    if "cs_iniciado" not in st.session_state:
+        st.session_state.cs_iniciado = False
+    if "jo_iniciado" not in st.session_state:
+        st.session_state.jo_iniciado = False
+    if "tabu_iniciado" not in st.session_state:
+        st.session_state.tabu_iniciado = False
 
 def app():
     inicializar_estado()
@@ -111,13 +99,13 @@ def app():
     # Menu Principal Organizado em 2 linhas (3 colunas)
     col1, col2, col3 = st.columns(3)
     with col1:
-        if st.button("🕵️‍♂️ Código Secreto", use_container_width=True): iniciar_codigo_secreto()
+        if st.button("🕵️‍♂️ Código Secreto", use_container_width=True): st.session_state.jogo_adivinhacao_ativo = "codigo_secreto"
         if st.button("⏱️ Megasenha", use_container_width=True): st.session_state.jogo_adivinhacao_ativo = "megasenha"
     with col2:
-        if st.button("☝️ Just One", use_container_width=True): iniciar_just_one()
+        if st.button("☝️ Just One", use_container_width=True): st.session_state.jogo_adivinhacao_ativo = "just_one"
         if st.button("🛑 Stop / Adedonha", use_container_width=True): st.session_state.jogo_adivinhacao_ativo = "stop"
     with col3:
-        if st.button("🚫 Tabu", use_container_width=True): iniciar_tabu()
+        if st.button("🚫 Tabu", use_container_width=True): st.session_state.jogo_adivinhacao_ativo = "tabu"
         if st.button("🎭 Mímica", use_container_width=True): st.session_state.jogo_adivinhacao_ativo = "mimica"
 
     st.divider()
@@ -125,84 +113,172 @@ def app():
     # --- LÓGICA: CÓDIGO SECRETO ---
     if st.session_state.jogo_adivinhacao_ativo == "codigo_secreto":
         st.subheader("🕵️‍♂️ Código Secreto (Codenames)")
-        modo_mestre = st.toggle("👁️ Modo Mestre Espião (Ver Cores)")
-        st.write("---")
-        for i in range(5):
-            cols = st.columns(5)
-            for j in range(5):
-                idx = i * 5 + j
-                palavra = st.session_state.cs_palavras[idx]
-                cor = st.session_state.cs_cores[idx]
-                revelada = st.session_state.cs_reveladas[idx]
-                
-                with cols[j]:
-                    if revelada or modo_mestre:
-                        st.button(f"{cor}\n\n**{palavra}**", key=f"cs_{idx}", disabled=True, use_container_width=True)
-                    else:
-                        if st.button(f"❔\n\n**{palavra}**", key=f"cs_{idx}", use_container_width=True):
-                            st.session_state.cs_reveladas[idx] = True
-                            st.rerun()
+        
+        tema_usuario = st.text_input("Gerar tabuleiro com IA? Digite um tema (ou deixe em branco)", key="tema_cs")
+        
+        if st.button("Gerar Novo Tabuleiro", type="primary"):
+            palavras = []
+            if 'api_key' in st.session_state and st.session_state['api_key'] and tema_usuario:
+                with st.spinner("IA criando tabuleiro temático..."):
+                    try:
+                        palavras = gerar_conteudo_ia("palavras_gerais", tema=tema_usuario, quantidade=25)
+                    except Exception as e:
+                        st.error(f"Erro na IA. Usando palavras originais...")
+            
+            # Fallback ou se faltar palavras na IA
+            if len(palavras) < 25:
+                palavras = random.sample(st.session_state.banco_palavras, min(25, len(st.session_state.banco_palavras)))
+            else:
+                palavras = random.sample(palavras, 25) # Garante exatamente 25
+
+            cores = ["🔴 Vermelho"] * 9 + ["🔵 Azul"] * 8 + ["⚪ Neutro"] * 7 + ["⚫ ASSASSINO"] * 1
+            random.shuffle(cores)
+            st.session_state.cs_palavras = palavras
+            st.session_state.cs_cores = cores
+            st.session_state.cs_reveladas = [False] * 25
+            st.session_state.cs_iniciado = True
+
+        if st.session_state.cs_iniciado:
+            modo_mestre = st.toggle("👁️ Modo Mestre Espião (Ver Cores)")
+            st.write("---")
+            for i in range(5):
+                cols = st.columns(5)
+                for j in range(5):
+                    idx = i * 5 + j
+                    palavra = st.session_state.cs_palavras[idx]
+                    cor = st.session_state.cs_cores[idx]
+                    revelada = st.session_state.cs_reveladas[idx]
+                    
+                    with cols[j]:
+                        if revelada or modo_mestre:
+                            st.button(f"{cor}\n\n**{palavra}**", key=f"cs_{idx}", disabled=True, use_container_width=True)
+                        else:
+                            if st.button(f"❔\n\n**{palavra}**", key=f"cs_{idx}", use_container_width=True):
+                                st.session_state.cs_reveladas[idx] = True
+                                st.rerun()
 
     # --- LÓGICA: JUST ONE ---
     elif st.session_state.jogo_adivinhacao_ativo == "just_one":
         st.subheader("☝️ Just One")
-        if st.session_state.jo_fase == "escrever_dicas":
-            st.error("⚠️ O jogador que vai adivinhar deve fechar os olhos ou virar de costas agora!")
-            st.markdown(f"### A Palavra Secreta é: **{st.session_state.jo_palavra}**")
-            num_jogadores = st.number_input("Quantos jogadores vão dar dicas?", min_value=2, max_value=8, value=4)
-            dicas = []
-            for i in range(num_jogadores):
-                dica = st.text_input(f"Dica do Jogador {i+1}", key=f"dica_jo_{i}").strip().lower()
-                if dica: dicas.append(dica)
-                    
-            if st.button("Processar Dicas", type="primary"):
-                if len(dicas) == num_jogadores:
-                    st.session_state.jo_dicas_validas = [d for d in dicas if dicas.count(d) == 1]
-                    st.session_state.jo_dicas_anuladas = list(set([d for d in dicas if dicas.count(d) > 1]))
-                    st.session_state.jo_fase = "revelar"
-                    st.rerun()
-                else:
-                    st.warning("Preencha todas as dicas antes de continuar!")
-
-        elif st.session_state.jo_fase == "revelar":
-            st.success("O jogador que vai adivinhar já pode olhar a tela!")
-            if st.session_state.jo_dicas_validas:
-                for d in st.session_state.jo_dicas_validas:
-                    st.info(f"💡 **{d.upper()}**")
-            else:
-                st.error("Todas as dicas foram repetidas e anuladas! 😭")
+        
+        col1, col2 = st.columns([2, 1])
+        with col1:
+            tema_usuario = st.text_input("Tema opcional com IA:", key="tema_jo")
+        with col2:
+            st.write("")
+            st.write("")
+            if st.button("Gerar Nova Palavra"):
+                palavra = None
+                if 'api_key' in st.session_state and st.session_state['api_key'] and tema_usuario:
+                    with st.spinner("Pensando..."):
+                        try:
+                            lista = gerar_conteudo_ia("palavras_gerais", tema=tema_usuario, quantidade=5)
+                            palavra = random.choice(lista)
+                        except:
+                            st.error("Falha na IA. Usando lista padrão.")
                 
-            if st.button("Revelar Palavra Secreta"):
-                st.markdown(f"### A palavra era: **{st.session_state.jo_palavra}**")
-            if st.button("Jogar Novamente"):
-                iniciar_just_one()
-                st.rerun()
+                if not palavra:
+                    palavra = random.choice(st.session_state.banco_palavras)
+                
+                st.session_state.jo_palavra = palavra
+                st.session_state.jo_dicas = {}
+                st.session_state.jo_fase = "escrever_dicas"
+                st.session_state.jo_iniciado = True
+
+        st.divider()
+
+        if st.session_state.jo_iniciado:
+            if st.session_state.jo_fase == "escrever_dicas":
+                st.error("⚠️ O jogador que vai adivinhar deve fechar os olhos ou virar de costas agora!")
+                st.markdown(f"### A Palavra Secreta é: **{st.session_state.jo_palavra}**")
+                num_jogadores = st.number_input("Quantos jogadores vão dar dicas?", min_value=2, max_value=8, value=4)
+                dicas = []
+                for i in range(num_jogadores):
+                    dica = st.text_input(f"Dica do Jogador {i+1}", key=f"dica_jo_{i}").strip().lower()
+                    if dica: dicas.append(dica)
+                        
+                if st.button("Processar Dicas", type="primary"):
+                    if len(dicas) == num_jogadores:
+                        st.session_state.jo_dicas_validas = [d for d in dicas if dicas.count(d) == 1]
+                        st.session_state.jo_dicas_anuladas = list(set([d for d in dicas if dicas.count(d) > 1]))
+                        st.session_state.jo_fase = "revelar"
+                        st.rerun()
+                    else:
+                        st.warning("Preencha todas as dicas antes de continuar!")
+
+            elif st.session_state.jo_fase == "revelar":
+                st.success("O jogador que vai adivinhar já pode olhar a tela!")
+                if st.session_state.jo_dicas_validas:
+                    for d in st.session_state.jo_dicas_validas:
+                        st.info(f"💡 **{d.upper()}**")
+                else:
+                    st.error("Todas as dicas foram repetidas e anuladas! 😭")
+                    
+                if st.button("Revelar Palavra Secreta"):
+                    st.markdown(f"### A palavra era: **{st.session_state.jo_palavra}**")
 
     # --- LÓGICA: TABU ---
     elif st.session_state.jogo_adivinhacao_ativo == "tabu":
         st.subheader("🚫 Tabu")
-        col1, col2, col3 = st.columns([1, 2, 1])
-        with col2:
-            st.markdown(f"<h1 style='text-align: center; color: #2e7bcf;'>{st.session_state.tabu_palavra}</h1>", unsafe_allow_html=True)
-            st.markdown("<hr>", unsafe_allow_html=True)
-            st.markdown("<h4 style='text-align: center; color: #d9534f;'>Palavras Proibidas (TABU):</h4>", unsafe_allow_html=True)
-            for p in st.session_state.tabu_proibidas:
-                st.markdown(f"<h3 style='text-align: center; color: #555555;'>❌ {p}</h3>", unsafe_allow_html=True)
-        st.divider()
+        
+        tema_usuario = st.text_input("Tema específico com IA? (Deixe em branco para aleatório)", key="tema_tabu")
+        
         if st.button("Gerar Nova Palavra", type="primary", use_container_width=True):
-            iniciar_tabu()
-            st.rerun()
+            sucesso_ia = False
+            if 'api_key' in st.session_state and st.session_state['api_key']:
+                with st.spinner("IA gerando carta de Tabu..."):
+                    try:
+                        tema_final = tema_usuario if tema_usuario else "aleatório"
+                        resultado = gerar_conteudo_ia("tabu", tema=tema_final)
+                        st.session_state.tabu_palavra = resultado["palavra"]
+                        st.session_state.tabu_proibidas = resultado["proibidas"]
+                        sucesso_ia = True
+                    except Exception as e:
+                        st.error("Falha na IA. Usando Tabu padrão.")
+            
+            if not sucesso_ia:
+                palavra = random.choice(list(DICIONARIO_TABU.keys()))
+                st.session_state.tabu_palavra = palavra
+                st.session_state.tabu_proibidas = DICIONARIO_TABU[palavra]
+            
+            st.session_state.tabu_iniciado = True
+
+        if st.session_state.tabu_iniciado:
+            st.divider()
+            col1, col2, col3 = st.columns([1, 2, 1])
+            with col2:
+                st.markdown(f"<h1 style='text-align: center; color: #2e7bcf;'>{st.session_state.tabu_palavra}</h1>", unsafe_allow_html=True)
+                st.markdown("<hr>", unsafe_allow_html=True)
+                st.markdown("<h4 style='text-align: center; color: #d9534f;'>Palavras Proibidas (TABU):</h4>", unsafe_allow_html=True)
+                for p in st.session_state.tabu_proibidas:
+                    st.markdown(f"<h3 style='text-align: center; color: #555555;'>❌ {p}</h3>", unsafe_allow_html=True)
 
     # --- LÓGICA: MEGASENHA ---
     elif st.session_state.jogo_adivinhacao_ativo == "megasenha":
-        st.subheader("🤫 Megasenha - Lista Completa")
+        st.subheader("🤫 Megasenha")
         if not st.session_state.pw_game["iniciado"]:
             qtd_palavras = st.number_input("Quantidade de Palavras", 3, 15, 5)
             tempo_segundos = st.slider("Tempo Total (segundos)", 30, 180, 60)
+            tema_usuario = st.text_input("Deseja um tema? (IA)")
+            
             if st.button("Gerar Lista e Iniciar", use_container_width=True):
-                selecionadas = random.sample(st.session_state.banco_palavras, min(qtd_palavras, len(st.session_state.banco_palavras)))
+                selecionadas = []
+                if 'api_key' in st.session_state and st.session_state['api_key'] and tema_usuario:
+                    with st.spinner("Gerando palavras..."):
+                        try:
+                            selecionadas = gerar_conteudo_ia("palavras_gerais", tema=tema_usuario, quantidade=qtd_palavras)
+                        except:
+                            st.error("Erro na IA.")
+                
+                # Fallback
+                if len(selecionadas) < qtd_palavras:
+                    selecionadas = random.sample(st.session_state.banco_palavras, min(qtd_palavras, len(st.session_state.banco_palavras)))
+                else:
+                    selecionadas = selecionadas[:qtd_palavras]
+
                 st.session_state.pw_game.update({"iniciado": True, "palavras": selecionadas, "tempo_total": tempo_segundos, "jogo_finalizado": False})
                 st.rerun()
+                
         elif not st.session_state.pw_game["jogo_finalizado"]:
             palavras = st.session_state.pw_game["palavras"]
             tempo_limite = st.session_state.pw_game["tempo_total"]
@@ -224,7 +300,7 @@ def app():
                     st.rerun()
                 time.sleep(1)
         else:
-            st.success("🏁 Fim do Tempo!")
+            st.success("🏁 Fim do Tempo ou da Rodada!")
             if st.button("Nova Partida", use_container_width=True):
                 st.session_state.pw_game = {"iniciado": False, "palavras": [], "tempo_total": 0, "jogo_finalizado": False}
                 st.rerun()
@@ -242,8 +318,19 @@ def app():
                 st.markdown(f"<h1 style='text-align: center; color: #FF4B4B; font-size: 5rem;'>{st.session_state.stop_letra}</h1>", unsafe_allow_html=True)
         
         with col_tema:
-            if st.button("🎲 Sortear Tema", use_container_width=True):
-                st.session_state.stop_tema = random.choice(st.session_state.banco_temas_stop)
+            tema_usuario = st.text_input("Criar tema de um assunto? (Opcional)")
+            if st.button("🎲 Sortear Categoria (Tema)", use_container_width=True):
+                if 'api_key' in st.session_state and st.session_state['api_key'] and tema_usuario:
+                    with st.spinner("Pensando..."):
+                        try:
+                            # Pede 5 para ter variedade e escolhe 1
+                            lista_temas = gerar_conteudo_ia("stop", tema=tema_usuario, quantidade=5)
+                            st.session_state.stop_tema = random.choice(lista_temas)
+                        except:
+                            st.session_state.stop_tema = random.choice(st.session_state.banco_temas_stop)
+                else:
+                    st.session_state.stop_tema = random.choice(st.session_state.banco_temas_stop)
+                    
             if st.session_state.stop_tema:
                 st.markdown(f"<h3 style='text-align: center; color: #2e7bcf; margin-top: 30px;'>{st.session_state.stop_tema}</h3>", unsafe_allow_html=True)
 
@@ -252,8 +339,20 @@ def app():
         st.subheader("🎭 Mímica")
         st.write("Aperte o botão e faça a sua equipe adivinhar sem dizer nenhuma palavra!")
         
+        tema_usuario = st.text_input("Quer um tema específico? (Deixe em branco para aleatório)", "")
+        
         if st.button("Sortear nova Mímica", type="primary", use_container_width=True):
-            st.session_state.mimica_palavra = random.choice(st.session_state.banco_mimica)
+            if 'api_key' in st.session_state and st.session_state['api_key']:
+                with st.spinner("A IA está pensando em uma mímica criativa..."):
+                    try:
+                        tema_final = tema_usuario if tema_usuario else "aleatório"
+                        lista_ia = gerar_conteudo_ia("mimica", tema=tema_final, quantidade=10)
+                        st.session_state.mimica_palavra = random.choice(lista_ia)
+                    except Exception as e:
+                        st.error("Ops! A IA falhou. Usando palavras do jogo base...")
+                        st.session_state.mimica_palavra = random.choice(st.session_state.banco_mimica)
+            else:
+                st.session_state.mimica_palavra = random.choice(st.session_state.banco_mimica)
         
         if st.session_state.mimica_palavra:
             st.markdown(f"""

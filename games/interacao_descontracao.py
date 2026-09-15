@@ -2,6 +2,7 @@ import streamlit as st
 import random
 import os
 import time
+from utils.gemini import gerar_conteudo_ia
 
 # --- CARREGAMENTO DE DADOS ---
 @st.cache_data
@@ -34,7 +35,6 @@ def carregar_verdade_desafio():
         try:
             import pandas as pd
             df = pd.read_csv(caminho, header=None, names=["texto", "tipo"])
-            # Retorna um dicionário separando por tipo
             verdades = df[df['tipo'].str.strip().str.upper() == "VERDADE"]["texto"].tolist()
             desafios = df[df['tipo'].str.strip().str.upper() == "DESAFIO"]["texto"].tolist()
             return {"VERDADE": verdades, "DESAFIO": desafios}
@@ -76,11 +76,13 @@ def iniciar_duas_verdades():
     st.session_state.jogo_interacao_ativo = "duas_verdades"
 
 def iniciar_eu_nunca():
-    st.session_state.en_frase_atual = random.choice(st.session_state.banco_eu_nunca)
+    if "en_frase_atual" not in st.session_state:
+        st.session_state.en_frase_atual = random.choice(st.session_state.banco_eu_nunca)
     st.session_state.jogo_interacao_ativo = "eu_nunca"
 
 def iniciar_vinte_perguntas():
-    st.session_state.vp_palavra = random.choice(st.session_state.banco_post_it)
+    if "vp_palavra" not in st.session_state:
+        st.session_state.vp_palavra = random.choice(st.session_state.banco_post_it)
     st.session_state.vp_contador = 0
     st.session_state.jogo_interacao_ativo = "vinte_perguntas"
 
@@ -104,6 +106,7 @@ def app():
     st.divider()
 
     # --- LÓGICA: DUAS VERDADES E UMA MENTIRA ---
+    # (Este jogo depende do input do usuário, então a IA não é tão aplicável aqui)
     if st.session_state.jogo_interacao_ativo == "duas_verdades":
         st.subheader("🤥 Duas Verdades e uma Mentira")
         if st.session_state.dv_fase == "preencher":
@@ -134,26 +137,58 @@ def app():
     # --- LÓGICA: EU NUNCA ---
     elif st.session_state.jogo_interacao_ativo == "eu_nunca":
         st.subheader("🫣 Eu Nunca")
+        
+        tema_en = st.text_input("Deseja um tema? (IA)", placeholder="Ex: Trabalho, Infância, Coisas constrangedoras...")
+        
         st.markdown(f"""
-        <div style="background-color: #f0f2f6; padding: 40px; border-radius: 15px; text-align: center; margin: 20px 0;">
+        <div style="background-color: #f0f2f6; padding: 40px; border-radius: 15px; text-align: center; margin: 20px 0; border: 2px dashed #2e7bcf;">
             <h2 style="color: #333;">{st.session_state.en_frase_atual}</h2>
         </div>
         """, unsafe_allow_html=True)
+        
         if st.button("🎲 Sortear Próxima Frase", use_container_width=True, type="primary"):
-            nova_frase = random.choice(st.session_state.banco_eu_nunca)
-            while nova_frase == st.session_state.en_frase_atual and len(st.session_state.banco_eu_nunca) > 1:
+            nova_frase = ""
+            if 'api_key' in st.session_state and st.session_state['api_key'] and tema_en.strip():
+                with st.spinner("Relembrando histórias..."):
+                    try:
+                        # Pede 3 e pega a primeira (variedade)
+                        frases = gerar_conteudo_ia("eu_nunca", tema=tema_en, quantidade=3)
+                        nova_frase = random.choice(frases)
+                    except Exception as e:
+                        st.error("Erro na IA, usando frases padrão...")
+            
+            if not nova_frase:
                 nova_frase = random.choice(st.session_state.banco_eu_nunca)
+                while nova_frase == st.session_state.en_frase_atual and len(st.session_state.banco_eu_nunca) > 1:
+                    nova_frase = random.choice(st.session_state.banco_eu_nunca)
+                    
             st.session_state.en_frase_atual = nova_frase
             st.rerun()
 
     # --- LÓGICA: VINTE PERGUNTAS ---
     elif st.session_state.jogo_interacao_ativo == "vinte_perguntas":
         st.subheader("❓ 20 Perguntas")
+        
+        tema_vp = st.text_input("Sugerir palavra temática? (IA)", placeholder="Ex: Filmes, Animais, Objetos Históricos...")
+        if st.button("🔄 Sortear Nova Palavra"):
+            nova_palavra = ""
+            if 'api_key' in st.session_state and st.session_state['api_key'] and tema_vp.strip():
+                with st.spinner("Procurando algo desafiador..."):
+                    try:
+                        palavras = gerar_conteudo_ia("palavras_gerais", tema=tema_vp, quantidade=5)
+                        nova_palavra = random.choice(palavras)
+                    except:
+                        st.error("Falha na IA.")
+            
+            if not nova_palavra:
+                nova_palavra = random.choice(st.session_state.banco_post_it)
+                
+            st.session_state.vp_palavra = nova_palavra
+            st.session_state.vp_contador = 0
+            st.rerun()
+
         with st.expander("👀 Revelar Palavra Secreta (Apenas para quem vai responder)", expanded=False):
             st.markdown(f"<h1 style='text-align: center; color: #2e7bcf;'>{st.session_state.vp_palavra}</h1>", unsafe_allow_html=True)
-            if st.button("Trocar Palavra"):
-                iniciar_vinte_perguntas()
-                st.rerun()
                 
         progresso = st.session_state.vp_contador / 20.0
         st.progress(min(progresso, 1.0))
@@ -179,18 +214,35 @@ def app():
     # --- LÓGICA: POST-IT NA TESTA ---
     elif st.session_state.jogo_interacao_ativo == "post_it":
         st.subheader("🏷️ Post-it na Testa")
-        st.write("Clique no botão e vire a tela para sua testa rapidamente! O grupo dará as dicas.")
+        st.write("Digite um tema (opcional), clique no botão e vire a tela para sua testa! O grupo dará as dicas.")
+        
+        tema_postit = st.text_input("Tema específico? (IA)", placeholder="Ex: Celebridades, Personagens de Desenho...")
 
-        if st.button("🚀 Sortear e Preparar (3s)", use_container_width=True, type="primary"):
+        if st.button("🚀 Sortear e Preparar", use_container_width=True, type="primary"):
             st.session_state.postit_revelado = False
+            palavra_sorteada = ""
             
+            # Chama a IA ANTES do contador regressivo
+            if 'api_key' in st.session_state and st.session_state['api_key'] and tema_postit.strip():
+                with st.spinner("Preparando Post-It..."):
+                    try:
+                        lista = gerar_conteudo_ia("palavras_gerais", tema=tema_postit, quantidade=5)
+                        palavra_sorteada = random.choice(lista)
+                    except:
+                        pass
+            
+            if not palavra_sorteada:
+                palavra_sorteada = random.choice(st.session_state.banco_post_it)
+                
+            st.session_state.postit_palavra_atual = palavra_sorteada
+            
+            # Contador regressivo
             placeholder = st.empty()
             for i in range(3, 0, -1):
                 placeholder.markdown(f"<h1 style='text-align: center; color: #FF4B4B;'>Vire a tela em {i}...</h1>", unsafe_allow_html=True)
                 time.sleep(1)
             placeholder.empty()
             
-            st.session_state.postit_palavra_atual = random.choice(st.session_state.banco_post_it)
             st.session_state.postit_revelado = True
             st.rerun()
 
@@ -210,6 +262,8 @@ def app():
     # --- LÓGICA: VERDADE OU DESAFIO ---
     elif st.session_state.jogo_interacao_ativo == "truth_or_dare":
         st.subheader("🎲 Verdade ou Desafio")
+        
+        tema_td = st.text_input("Tema para as perguntas/desafios? (IA)", placeholder="Ex: Leve, Pesado, Engraçado, Romântico...")
 
         st.write("### ⚡ Sorteio Rápido")
         if st.button("🔥 RODAR O DADO", use_container_width=True, type="primary"):
@@ -241,11 +295,25 @@ def app():
             if st.session_state.td_game["resultado_dado"]:
                 tipo_atual = st.session_state.td_game["resultado_dado"]
                 if st.button(f"✨ Sugestão de {tipo_atual.capitalize()}", use_container_width=True):
-                    lista_sugestoes = st.session_state.banco_td.get(tipo_atual, [])
-                    if lista_sugestoes:
-                        st.session_state.td_game["sugestao_atual"] = random.choice(lista_sugestoes)
-                    else:
-                        st.warning(f"Sem sugestões disponíveis para {tipo_atual}.")
+                    sugestao = ""
+                    # Se tiver tema definido, gera com a IA na hora
+                    if 'api_key' in st.session_state and st.session_state['api_key'] and tema_td.strip():
+                        with st.spinner("Criando sugestão..."):
+                            try:
+                                json_td = gerar_conteudo_ia("truth_or_dare", tema=tema_td, quantidade=2)
+                                sugestao = random.choice(json_td[tipo_atual])
+                            except Exception as e:
+                                pass
+                    
+                    # Fallback para o CSV
+                    if not sugestao:
+                        lista_sugestoes = st.session_state.banco_td.get(tipo_atual, [])
+                        if lista_sugestoes:
+                            sugestao = random.choice(lista_sugestoes)
+                        else:
+                            sugestao = f"Sem sugestões disponíveis para {tipo_atual}."
+                            
+                    st.session_state.td_game["sugestao_atual"] = sugestao
 
         with col2:
             with st.popover("👥 Cadastrar Nomes (Opcional)", use_container_width=True):
