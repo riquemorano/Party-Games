@@ -1,23 +1,37 @@
 import streamlit as st
+from google import genai
 
 # Configuração da página (Deve ser o primeiro comando Streamlit do script)
 st.set_page_config(
     page_title="Party Games Hub",
     page_icon="🎲",
     layout="centered",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="expanded",
 )
 
 # Importando os 4 módulos dos jogos.
-# Nota: Se você salvou os arquivos dentro da pasta 'games', 
+# Nota: Se você salvou os arquivos dentro da pasta 'games',
 # altere os imports para: from games import deducao_social, etc.
 from games import deducao_social
 from games import adivinhacao_palavras
 from games import desenho_criatividade
 from games import interacao_descontracao
 
+
 def main():
     # --- MENU LATERAL (SIDEBAR) ---
+
+    api_key = st.sidebar.text_input("Insira sua API Key do Gemini:", type="password")
+
+    if api_key:
+        # SALVANDO NA MEMÓRIA PARA OS JOGOS ACESSAREM
+        st.session_state["api_key"] = api_key
+        st.sidebar.success("Chave configurada! A IA está pronta.")
+    else:
+        st.sidebar.warning(
+            "Insira uma API Key para gerar palavras com IA. Caso contrário, usaremos as listas padrão."
+        )
+        
     st.sidebar.title("🎲 Party Games")
     st.sidebar.markdown("Escolha a categoria:")
 
@@ -28,13 +42,15 @@ def main():
             "🕵️ Dedução Social e Blefe",
             "🗣️ Adivinhação e Palavras",
             "🎨 Desenho e Criatividade",
-            "🍻 Interação e Descontração"
+            "🍻 Interação e Descontração",
         ],
-        label_visibility="collapsed"
+        label_visibility="collapsed",
     )
 
     st.sidebar.divider()
-    st.sidebar.info("💡 **Dica:** Alguns jogos precisam que os participantes não olhem a tela ao mesmo tempo. Siga as instruções de cada jogo!")
+    st.sidebar.info(
+        "💡 **Dica:** Alguns jogos precisam que os participantes não olhem a tela ao mesmo tempo. Siga as instruções de cada jogo!"
+    )
 
     # --- ROTEAMENTO DE PÁGINAS ---
     if pagina == "🏠 Início":
@@ -50,18 +66,19 @@ def main():
         
         Reúna o grupo e divirtam-se!
         """)
-        
+
     elif pagina == "🕵️ Dedução Social e Blefe":
         deducao_social.app()
-        
+
     elif pagina == "🗣️ Adivinhação e Palavras":
         adivinhacao_palavras.app()
-        
+
     elif pagina == "🎨 Desenho e Criatividade":
         desenho_criatividade.app()
-        
+
     elif pagina == "🍻 Interação e Descontração":
         interacao_descontracao.app()
+
 
 if __name__ == "__main__":
     main()

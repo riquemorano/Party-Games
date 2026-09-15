@@ -1,6 +1,7 @@
 import streamlit as st
 import random
 import os
+from utils.gemini import gerar_conteudo_ia
 
 # --- CARREGAMENTO DE DADOS ---
 @st.cache_data
@@ -180,7 +181,9 @@ def app():
 
         if not st.session_state.mafia_game["iniciado"]:
             st.write("### ⚙️ Configuração da Partida")
+            
             n_jogadores = st.number_input("Total de Jogadores na roda", 3, 50, 6)
+            tema_mafia = st.text_input("Papéis Temáticos com IA? (Ex: The Office, Harry Potter)", placeholder="Deixe em branco para o jogo padrão")
 
             st.write("### 🎭 Distribuir Papéis")
             col1, col2 = st.columns(2)
@@ -212,7 +215,32 @@ def app():
                 btn_ready = True
 
             if st.button("Sortear e Começar", disabled=not btn_ready, use_container_width=True, type="primary"):
-                baralho = ["🩸 ASSASSINO"] * n_assassinos + ["🔍 DETETIVE"] * n_detetive + ["💊 MÉDICO"] * n_medico + ["🏘️ CIDADÃO"] * n_cidadaos
+                # Dicionário padrão de papéis
+                nomes_papeis = {
+                    "assassino": "🩸 ASSASSINO",
+                    "detetive": "🔍 DETETIVE",
+                    "medico": "💊 MÉDICO",
+                    "cidadao": "🏘️ CIDADÃO"
+                }
+
+                # Se houver tema e API Key, tentamos personalizar os papéis
+                if 'api_key' in st.session_state and st.session_state['api_key'] and tema_mafia.strip():
+                    with st.spinner(f"Criando papéis no universo de '{tema_mafia}'..."):
+                        try:
+                            nomes_ia = gerar_conteudo_ia("mafia", tema=tema_mafia)
+                            # Formatamos para ficar bonitinho e o script original ainda conseguir ler o papel base nas condicionais
+                            nomes_papeis["assassino"] = f"🩸 {nomes_ia['assassino'].upper()} (ASSASSINO)"
+                            nomes_papeis["detetive"] = f"🔍 {nomes_ia['detetive'].upper()} (DETETIVE)"
+                            nomes_papeis["medico"] = f"💊 {nomes_ia['medico'].upper()} (MÉDICO)"
+                            nomes_papeis["cidadao"] = f"🏘️ {nomes_ia['cidadao'].upper()} (CIDADÃO)"
+                        except Exception as e:
+                            st.error("Falha na IA ao criar papéis temáticos. Usando papéis padrão...")
+
+                baralho = [nomes_papeis["assassino"]] * n_assassinos + \
+                          [nomes_papeis["detetive"]] * n_detetive + \
+                          [nomes_papeis["medico"]] * n_medico + \
+                          [nomes_papeis["cidadao"]] * n_cidadaos
+
                 for nome, qtd in papeis_extras_dict.items():
                     baralho.extend([nome.upper()] * qtd)
 
@@ -235,6 +263,8 @@ def app():
                         st.rerun()
                 else:
                     papel = st.session_state.mafia_game["papeis"][atual]
+                    
+                    # As condicionais continuam funcionando porque os papéis IA mantêm as tags "(ASSASSINO)", "(CIDADÃO)" etc.
                     if "ASSASSINO" in papel:
                         st.error(f"Seu papel é: **{papel}**")
                     elif "CIDADÃO" in papel:
@@ -261,10 +291,24 @@ def app():
             st.write("### ⚙️ Configuração")
             n = st.number_input("Número de Jogadores", 3, 20, 4)
             diff = st.selectbox("Dificuldade", ["Normal", "Hard"])
+            tema_spy = st.text_input("Tema Opcional (IA):", placeholder="Ex: Marcas Famosas, Comida...")
             
             if st.button("Sortear Palavras / Espião", use_container_width=True, type="primary"):
-                banco = st.session_state.spy_game["banco_spy"]
-                par = random.choice(banco)
+                par = None
+                
+                # Tenta gerar um par customizado com a IA se o tema foi preenchido
+                if 'api_key' in st.session_state and st.session_state['api_key'] and tema_spy.strip():
+                    with st.spinner(f"Gerando pares secretos de '{tema_spy}'..."):
+                        try:
+                            par = gerar_conteudo_ia("spy", tema=tema_spy)
+                        except Exception as e:
+                            st.error("Erro na IA. Usando palavras aleatórias...")
+
+                # Fallback: Se não usamos a IA ou ela falhou (o len(par) evita erros de formatação)
+                if not par or len(par) != 2:
+                    banco = st.session_state.spy_game["banco_spy"]
+                    par = random.choice(banco)
+
                 p1, p2 = random.sample(list(par), 2)
                 espiao = random.randint(0, n - 1)
 
@@ -272,6 +316,7 @@ def app():
                     ("⚠️ TEMA LIVRE" if i == espiao and diff == "Hard" else (p2 if i == espiao else p1))
                     for i in range(n)
                 ]
+                
                 st.session_state.spy_game.update({"iniciado": True, "palavras": lista, "atual": 0, "revelado": False})
                 st.rerun()
         else:
