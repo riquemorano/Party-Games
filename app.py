@@ -1,92 +1,67 @@
 import streamlit as st
-import pandas as pd
-import random
-import os
 
-import streamlit as st
-from games.spy import render_spy_game
-from games.mafia import render_mafia_game
-from games.stop import render_stop_game
-from games.mime import render_mime_game
-from games.truth_or_dare import render_truth_or_dare
-from games.password_game import render_password_game
-from games.post_it import render_post_it_game
-
-# Configuração da Página
-st.set_page_config(page_title="Game Night Hub", page_icon="🎮", layout="centered")
-
-
-# --- Funções Auxiliares ---
-def carregar_palavra_aleatoria(nome_arquivo):
-    caminho = os.path.join("data", nome_arquivo)
-    try:
-        # Usando header=None se seus CSVs não tiverem cabeçalho, ou ajuste conforme necessário
-        df = pd.read_csv(caminho)
-        lista = df.values.flatten().tolist()
-        return random.choice(
-            [x for x in lista if str(x).lower() != "nan" and str(x).strip() != ""]
-        )
-    except Exception as e:
-        st.error(
-            f"Erro ao ler {nome_arquivo}. Verifique se o arquivo está na pasta 'data'."
-        )
-        return "Erro"
-
-
-# --- Interface Lateral ---
-st.sidebar.title("🎮 Menu de Jogos")
-jogo_selecionado = st.sidebar.selectbox(
-    "Escolha o que jogar:",
-    [
-        "Who is the Spy?",
-        "Máfia (Cidade Dorme)",
-        "Stop!",
-        "Verdade ou Desafio",
-        "Megasenha (Password)",
-        "Post-it na Testa",
-    ],
+# Configuração da página (Deve ser o primeiro comando Streamlit do script)
+st.set_page_config(
+    page_title="Party Games Hub",
+    page_icon="🎲",
+    layout="centered",
+    initial_sidebar_state="expanded"
 )
 
-# Limpar estados de outros jogos ao trocar no menu
-if "ultimo_jogo" not in st.session_state:
-    st.session_state.ultimo_jogo = jogo_selecionado
-if st.session_state.ultimo_jogo != jogo_selecionado:
-    for key in [
-        "spy_game",
-        "mafia_game",
-        "stop_game",
-        "truth_dare_game",
-        "password_game",
-    ]:
-        if key in st.session_state:
-            del st.session_state[key]
-    st.session_state.ultimo_jogo = jogo_selecionado
+# Importando os 4 módulos dos jogos.
+# Nota: Se você salvou os arquivos dentro da pasta 'games', 
+# altere os imports para: from games import deducao_social, etc.
+from games import deducao_social
+from games import adivinhacao_palavras
+from games import desenho_criatividade
+from games import interacao_descontracao
 
-# --- WHO IS THE SPY? ---
-if jogo_selecionado == "Who is the Spy?":
-    render_spy_game()
+def main():
+    # --- MENU LATERAL (SIDEBAR) ---
+    st.sidebar.title("🎲 Party Games")
+    st.sidebar.markdown("Escolha a categoria:")
 
-# --- MÁFIA (CIDADE DORME) ---
-elif jogo_selecionado == "Máfia (Cidade Dorme)":
-    render_mafia_game()
+    pagina = st.sidebar.radio(
+        "Navegação",
+        [
+            "🏠 Início",
+            "🕵️ Dedução Social e Blefe",
+            "🗣️ Adivinhação e Palavras",
+            "🎨 Desenho e Criatividade",
+            "🍻 Interação e Descontração"
+        ],
+        label_visibility="collapsed"
+    )
 
-# --- MÍMICA ---
-elif jogo_selecionado == "Mímica":
-    render
+    st.sidebar.divider()
+    st.sidebar.info("💡 **Dica:** Alguns jogos precisam que os participantes não olhem a tela ao mesmo tempo. Siga as instruções de cada jogo!")
 
-# --- DRAW & GUESS ---
-elif jogo_selecionado == "Draw & Guess":
-    render_draw_guess_game()
+    # --- ROTEAMENTO DE PÁGINAS ---
+    if pagina == "🏠 Início":
+        st.title("🎲 Bem-vindo ao Party Games Hub!")
+        st.markdown("""
+        Esta é a sua central de jogos para festas e reuniões com amigos! 
+        Navegue pelo menu lateral para explorar as categorias:
+        
+        * **🕵️ Dedução Social e Blefe:** Descubra quem é o traidor em *A Resistência* ou *Lobisomem de Uma Noite*.
+        * **🗣️ Adivinhação e Palavras:** Teste sua sintonia com *Código Secreto*, *Just One*, *Tabu* e *Megasenha*.
+        * **🎨 Desenho e Criatividade:** Dê risadas com *Gartic Phone (Telefone Sem Fio)* ou adivinhe ícones no *Concept*.
+        * **🍻 Interação e Descontração:** Quebre o gelo com *2 Verdades e 1 Mentira*, *Eu Nunca* ou *20 Perguntas*.
+        
+        Reúna o grupo e divirtam-se!
+        """)
+        
+    elif pagina == "🕵️ Dedução Social e Blefe":
+        deducao_social.app()
+        
+    elif pagina == "🗣️ Adivinhação e Palavras":
+        adivinhacao_palavras.app()
+        
+    elif pagina == "🎨 Desenho e Criatividade":
+        desenho_criatividade.app()
+        
+    elif pagina == "🍻 Interação e Descontração":
+        interacao_descontracao.app()
 
-# --- POST-IT NA TESTA ---
-elif jogo_selecionado == "Post-it na Testa":
-    render_post_it_game(carregar_palavra_aleatoria("palavrasPostIt.csv"))
-# --- 6. STOP! ---
-elif jogo_selecionado == "Stop!":
-    render_stop_game(carregar_palavra_aleatoria("temasStop.csv"))
-
-elif jogo_selecionado == "Verdade ou Desafio":
-    render_truth_or_dare()
-
-elif jogo_selecionado == "Megasenha (Password)":
-    render_password_game()
+if __name__ == "__main__":
+    main()
