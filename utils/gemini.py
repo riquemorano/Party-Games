@@ -31,6 +31,7 @@ def gerar_conteudo_ia(jogo, tema="geral", quantidade=10):
         # Interação e Descontração
         "eu_nunca": f"Gere {quantidade} frases inusitadas, criativas e divertidas para o jogo 'Eu Nunca' (Never have I ever). Tema: {tema}. Todas devem obrigatoriamente começar com 'Eu nunca'. Responda APENAS com um array JSON de strings.",
         "truth_or_dare": f"Gere {quantidade} perguntas de 'Verdade' e {quantidade} de 'Desafio' divertidas para uma festa. Tema: {tema}. Responda APENAS com um objeto JSON válido com as chaves exatas 'VERDADE' e 'DESAFIO' contendo arrays de strings. Exemplo: {{\"VERDADE\": [\"Qual seu maior segredo?\"], \"DESAFIO\": [\"Dance uma música no mudo.\"]}}",
+        "perguntas_conexao": f"Gere {quantidade} perguntas criativas, profundas, reflexivas ou hipotéticas para amigos, namorados ou casais se conhecerem melhor. Tema/Estilo: {tema}. Responda APENAS com um array JSON de strings.",    
     }
 
     prompt = prompts.get(jogo)

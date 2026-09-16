@@ -85,6 +85,22 @@ def carregar_verdade_desafio():
     }
 
 
+@st.cache_data
+def carregar_perguntas_conexao():
+    return [
+        "Se você pudesse reviver um dia da nossa história, qual seria?",
+        "Qual é o seu maior sonho que você ainda não realizou?",
+        "Qual foi a primeira impressão que você teve de mim?",
+        "Se você tivesse que fugir e começar uma nova vida, para onde iria e o que faria?",
+        "O que te faz sentir mais amado(a) ou valorizado(a)?",
+        "Qual é o seu maior medo irracional?",
+        "Se o mundo acabasse amanhã, como você passaria suas últimas 24 horas?",
+        "Qual é a sua memória de infância favorita?",
+        "Se pudesse mudar uma regra da sociedade, qual seria?",
+        "Qual característica minha você acha mais engraçada ou peculiar?",
+    ]
+
+
 def inicializar_estado():
     # Estrutura inicial do session_state para persistir dados durante os reruns do Streamlit
     if "jogo_interacao_ativo" not in st.session_state:
@@ -110,6 +126,12 @@ def inicializar_estado():
             "pergunta_para": "",
             "sugestao_atual": "",
         }
+
+    # Controle de estado específico: Conexão (Perguntas)
+    if "banco_perguntas_conexao" not in st.session_state:
+        st.session_state.banco_perguntas_conexao = carregar_perguntas_conexao()
+    if "pc_pergunta_atual" not in st.session_state:
+        st.session_state.pc_pergunta_atual = ""
 
 
 # --- FUNÇÕES DE SETUP RÁPIDO ---
@@ -151,6 +173,8 @@ def app():
     with col3:
         if st.button("❓ 20 Perguntas", use_container_width=True):
             iniciar_vinte_perguntas()
+        if st.button("❤️ Conexão", use_container_width=True):
+            st.session_state.jogo_interacao_ativo = "perguntas_conexao"
 
     st.divider()
 
@@ -472,6 +496,59 @@ def app():
             st.chat_message("assistant").write(
                 st.session_state.td_game["sugestao_atual"]
             )
+
+    # --- LÓGICA: CONEXÃO (PERGUNTAS) ---
+    elif st.session_state.jogo_interacao_ativo == "perguntas_conexao":
+        st.subheader("❤️ Conexão")
+        st.write(
+            "Ideal para casais, amigos íntimos e para quem quer se conhecer melhor explorando cenários hipotéticos ou conversas profundas."
+        )
+
+        tema_pc = st.text_input(
+            "Tema ou estilo das perguntas? (IA)",
+            placeholder="Ex: Romântico, Polêmico, Futuro, Engraçado, Situações Extremas...",
+        )
+
+        if st.session_state.pc_pergunta_atual:
+            st.markdown(
+                f"""
+                <div style="background-color: #ffe6e6; padding: 40px; border-radius: 15px; text-align: center; margin: 20px 0; border: 2px dashed #ff4b4b;">
+                    <h2 style="color: #333; margin: 0;">{st.session_state.pc_pergunta_atual}</h2>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+        if st.button("🎲 Sortear Pergunta", use_container_width=True, type="primary"):
+            nova_pergunta = ""
+            if (
+                "api_key" in st.session_state
+                and st.session_state["api_key"]
+                and tema_pc.strip()
+            ):
+                with st.spinner("Buscando uma pergunta interessante..."):
+                    try:
+                        # Pede múltiplas opções para a IA e seleciona uma para ter variedade
+                        perguntas = gerar_conteudo_ia(
+                            "perguntas_conexao", tema=tema_pc, quantidade=4
+                        )
+                        nova_pergunta = random.choice(perguntas)
+                    except Exception as e:
+                        st.error("Erro na IA. Usando perguntas padrão...")
+
+            if not nova_pergunta:
+                nova_pergunta = random.choice(st.session_state.banco_perguntas_conexao)
+                # Garante que a mesma pergunta não se repita logo em seguida
+                while (
+                    nova_pergunta == st.session_state.pc_pergunta_atual
+                    and len(st.session_state.banco_perguntas_conexao) > 1
+                ):
+                    nova_pergunta = random.choice(
+                        st.session_state.banco_perguntas_conexao
+                    )
+
+            st.session_state.pc_pergunta_atual = nova_pergunta
+            st.rerun()
 
 
 if __name__ == "__main__":
